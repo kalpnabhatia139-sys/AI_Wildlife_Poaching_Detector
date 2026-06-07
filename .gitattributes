@@ -1,0 +1,8 @@
+* text=auto
+*.py binary
+*.pt binary
+*.pth binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
