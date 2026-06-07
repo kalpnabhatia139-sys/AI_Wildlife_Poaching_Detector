@@ -1,0 +1,414 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🦁 Wildlife Poaching Detector | Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Leaflet CSS for map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0a2e2a 0%, #0e3b32 100%);
+            color: #e0f2e9;
+            padding: 24px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+
+        /* Header */
+        .header {
+            display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;
+            background: rgba(255,255,255,0.06); backdrop-filter: blur(12px);
+            border-radius: 48px; padding: 20px 28px; margin-bottom: 32px;
+            border: 1px solid rgba(74,222,128,0.3);
+        }
+        .title-section h1 {
+            background: linear-gradient(135deg, #a3e635, #4ade80);
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+        }
+        .status-card {
+            background: rgba(0,0,0,0.4); border-radius: 40px; padding: 10px 24px;
+            display: flex; align-items: center; gap: 16px;
+            border: 1px solid rgba(74,222,128,0.5);
+        }
+        .status-led {
+            width: 12px; height: 12px; border-radius: 50%;
+            background: #4ade80; box-shadow: 0 0 12px #4ade80;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse { 0% { opacity: 0.5; transform: scale(0.8); } 100% { opacity: 1; transform: scale(1.2); } }
+
+        /* Stats Cards */
+        .stats-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 24px; margin-bottom: 32px;
+        }
+        .stat-card {
+            background: rgba(15,25,22,0.7); backdrop-filter: blur(10px);
+            border-radius: 28px; padding: 24px; border: 1px solid rgba(74,222,128,0.25);
+            transition: 0.2s;
+        }
+        .stat-card:hover { border-color: #4ade80; transform: translateY(-4px); }
+        .stat-title { font-size: 0.85rem; text-transform: uppercase; color: #bbf7d0; margin-bottom: 12px; }
+        .stat-value { font-size: 2.4rem; font-weight: 700; color: #f0fdf4; }
+
+        /* Tabs */
+        .tabs {
+            display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 1px solid rgba(74,222,128,0.2);
+            padding-bottom: 8px; flex-wrap: wrap;
+        }
+        .tab-btn {
+            background: rgba(255,255,255,0.05); border: none; padding: 12px 24px;
+            border-radius: 40px; color: #e0f2e9; cursor: pointer; font-size: 1rem;
+            transition: 0.2s;
+        }
+        .tab-btn.active {
+            background: #4ade80; color: #0a2e2a; font-weight: 600;
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Cards */
+        .card {
+            background: rgba(10,20,18,0.7); backdrop-filter: blur(12px);
+            border-radius: 32px; border: 1px solid rgba(74,222,128,0.2);
+            overflow: hidden; margin-bottom: 28px;
+        }
+        .card-header {
+            padding: 20px 28px; border-bottom: 1px solid rgba(74,222,128,0.2);
+            display: flex; justify-content: space-between; align-items: center;
+            flex-wrap: wrap; gap: 12px;
+        }
+        .card-header h2 i { color: #4ade80; }
+        .image-container {
+            padding: 20px; text-align: center; min-height: 350px;
+            background: rgba(0,0,0,0.2);
+        }
+        .image-container img { max-width: 100%; max-height: 350px; border-radius: 20px; border: 2px solid #4ade80; }
+        .placeholder-alert { padding: 60px 20px; text-align: center; color: #9ca3af; }
+
+        /* Map container */
+        .map-container {
+            padding: 20px; height: 450px; background: #1a2a2a;
+        }
+        #poacherMap { height: 100%; width: 100%; border-radius: 20px; z-index: 1; }
+
+        /* Log Table */
+        .log-table { width: 100%; border-collapse: collapse; }
+        .log-table th, .log-table td { padding: 12px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .log-table th { color: #bbf7d0; }
+
+        /* Buttons */
+        .btn {
+            background: rgba(255,255,255,0.08); border: 1px solid rgba(74,222,128,0.4);
+            padding: 8px 18px; border-radius: 40px; color: #e0f2e9; cursor: pointer;
+            transition: 0.2s;
+        }
+        .btn:hover { background: #4ade80; color: #0a2e2a; }
+
+        /* Charts */
+        .chart-container { padding: 20px; }
+        canvas { max-height: 300px; width: 100%; }
+
+        textarea {
+            width: 100%; background: rgba(0,0,0,0.4); border: 1px solid rgba(74,222,128,0.3);
+            border-radius: 20px; padding: 12px; color: #e0f2e9; font-family: inherit;
+        }
+        .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid rgba(74,222,128,0.2); }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- Header -->
+    <div class="header">
+        <div class="title-section">
+            <h1><i class="fas fa-paw"></i> Wildlife Sentinel</h1>
+            <p>AI anti-poaching system | Real-time YOLOv8 detection</p>
+        </div>
+        <div class="status-card">
+            <div class="status-led"></div>
+            <span>System Active</span>
+            <i class="fas fa-shield-alt" style="color:#4ade80"></i>
+            <span id="clock" style="font-family:monospace"></span>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-title"><i class="fas fa-microchip"></i> Detection Model</div>
+            <div class="stat-value">YOLOv8n</div>
+            <div>CPU · 70% confidence</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-title"><i class="fas fa-bell"></i> Last Alert</div>
+            <div class="stat-value" id="lastAlertTime">---</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-title"><i class="fas fa-chart-line"></i> Total Alerts</div>
+            <div class="stat-value" id="totalAlerts">0</div>
+        </div>
+    </div>
+
+    <!-- Anomaly Detection Card -->
+    {% if anomaly_message %}
+    <div class="card" style="border-left: 5px solid #ff9800;">
+        <div class="card-header">
+            <h2><i class="fas fa-exclamation-triangle"></i> Anomaly Detection</h2>
+        </div>
+        <div style="padding: 15px 25px;">{{ anomaly_message }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Tabs (Image, Map, Logs, Charts) -->
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="dashboard">📸 Dashboard (Image)</button>
+        <button class="tab-btn" data-tab="map">🗺️ Poacher Map</button>
+        <button class="tab-btn" data-tab="logs">📋 Alert Logs</button>
+        <button class="tab-btn" data-tab="charts">📊 Analytics</button>
+    </div>
+
+    <!-- Tab 1: Dashboard (Latest Image) -->
+    <div id="dashboard" class="tab-content active">
+        <div class="card">
+            <div class="card-header">
+                <h2><i class="fas fa-camera"></i> Latest Poacher Capture</h2>
+                <button class="btn" onclick="location.reload();"><i class="fas fa-sync-alt"></i> Refresh</button>
+            </div>
+            <div class="image-container">
+                {% if image_exists %}
+                    <img src="/image?t={{ range(1, 1000000) | random }}" alt="Latest alert">
+                {% else %}
+                    <div class="placeholder-alert"><i class="fas fa-camera-retro"></i><br>No alerts yet</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 2: Map (Interactive) -->
+    <div id="map" class="tab-content">
+        <div class="card">
+            <div class="card-header">
+                <h2><i class="fas fa-map-marked-alt"></i> Poacher Last Seen Location</h2>
+                <span class="btn" style="cursor:default;"><i class="fas fa-satellite"></i> Simulated GPS</span>
+            </div>
+            <div class="map-container">
+                <div id="poacherMap"></div>
+            </div>
+            <div style="padding: 15px 25px; border-top: 1px solid rgba(74,222,128,0.2); font-size: 0.9rem;">
+                <i class="fas fa-info-circle"></i> Marker shows approximate last known poacher location (forest zone). 
+                In a live deployment, actual GPS coordinates would be sent by the camera trap.
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 3: Alert Logs with CSV -->
+    <div id="logs" class="tab-content">
+        <div class="card">
+            <div class="card-header">
+                <h2><i class="fas fa-list-ul"></i> Ranger Alert Log (Last 10)</h2>
+                <button class="btn" onclick="exportToCSV()"><i class="fas fa-download"></i> Export CSV</button>
+            </div>
+            <div style="overflow-x: auto; padding: 20px;">
+                <table class="log-table" id="alertTable">
+                    <thead><tr><th>Timestamp</th><th>Object</th><th>Confidence</th></tr></thead>
+                    <tbody>
+                        {% if alerts and alerts[0] != "No alerts yet. Run 'python run.py' and trigger detection." %}
+                            {% for line in alerts %}
+                            {% set parts = line.strip().split(' | ') %}
+                            <tr>
+                                <td>{{ parts[0] if parts|length > 0 else line }}</td>
+                                <td><strong>{{ parts[1] if parts|length > 1 else '—' }}</strong></td>
+                                <td>{{ parts[2] if parts|length > 2 else '' }}</strong></td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr><td colspan="3" style="text-align:center">📭 No detections yet. Run detector.</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 4: Charts -->
+    <div id="charts" class="tab-content">
+        <div class="card">
+            <div class="card-header"><h2><i class="fas fa-chart-bar"></i> Alerts per Day</h2></div>
+            <div class="chart-container">
+                <canvas id="dailyChart"></canvas>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h2><i class="fas fa-chart-pie"></i> Confidence Distribution</h2></div>
+            <div class="chart-container">
+                <canvas id="confidenceChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ranger Notes -->
+    <div class="card">
+        <div class="card-header">
+            <h2><i class="fas fa-pen-alt"></i> Ranger Notes</h2>
+            <span class="btn" style="font-size:12px"><i class="fas fa-save"></i> Auto-saved</span>
+        </div>
+        <div style="padding: 20px;">
+            <textarea id="rangerNotes" rows="3" placeholder="Write your patrol notes here... They will be saved automatically."></textarea>
+        </div>
+    </div>
+
+    <div class="footer">
+        <i class="fas fa-envelope"></i> Email alerts &nbsp;|&nbsp;
+        <i class="fas fa-map-marked-alt"></i> Live map &nbsp;|&nbsp;
+        <i class="fas fa-chart-line"></i> AI Analytics &nbsp;|&nbsp;
+        <i class="fas fa-tree"></i> Wildlife Protection
+    </div>
+</div>
+
+<script>
+    // Live Clock
+    function updateClock() {
+        document.getElementById('clock').innerText = new Date().toLocaleTimeString();
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // Stats from table
+    const tableRows = document.querySelectorAll('#alertTable tbody tr');
+    let totalAlerts = tableRows.length;
+    document.getElementById('totalAlerts').innerText = totalAlerts;
+    if (totalAlerts > 0 && tableRows[0].cells[0]) {
+        document.getElementById('lastAlertTime').innerText = tableRows[0].cells[0].innerText;
+    }
+
+    // Initialize map when map tab is clicked (to avoid sizing issues)
+    let mapInitialized = false;
+    function initMap() {
+        if (mapInitialized) return;
+        // Leaflet map with forest theme tile layer
+        var map = L.map('poacherMap').setView([29.5363, 78.7734], 10);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
+        }).addTo(map);
+        // Marker with last alert timestamp (if any)
+        var popupContent = "🚨 <b>Poacher Last Seen</b><br>Location: Forest Zone Beta<br>";
+        if (totalAlerts > 0 && tableRows[0].cells[0]) {
+            popupContent += "Time: " + tableRows[0].cells[0].innerText;
+        } else {
+            popupContent += "No alerts yet. Detection active.";
+        }
+        var marker = L.marker([29.54, 78.78]).addTo(map);
+        marker.bindPopup(popupContent).openPopup();
+        mapInitialized = true;
+    }
+
+    // Tab switching with map initialization
+    const tabs = document.querySelectorAll('.tab-btn');
+    const contents = document.querySelectorAll('.tab-content');
+    tabs.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tabId = btn.getAttribute('data-tab');
+            tabs.forEach(b => b.classList.remove('active'));
+            contents.forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+            // If map tab is opened, initialize map
+            if (tabId === 'map') {
+                setTimeout(initMap, 100);  // small delay to ensure container is visible
+            }
+        });
+    });
+
+    // Charts (using Flask data)
+    const chartDates = {{ chart_dates | safe }};
+    const chartCounts = {{ chart_counts | safe }};
+    const confidences = {{ confidences | safe }};
+
+    if (chartDates.length > 0 && document.getElementById('dailyChart')) {
+        const ctxBar = document.getElementById('dailyChart').getContext('2d');
+        new Chart(ctxBar, {
+            type: 'bar',
+            data: {
+                labels: chartDates,
+                datasets: [{
+                    label: 'Number of Alerts',
+                    data: chartCounts,
+                    backgroundColor: 'rgba(74, 222, 128, 0.6)',
+                    borderColor: '#4ade80',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { labels: { color: '#e0f2e9' } } },
+                scales: { y: { beginAtZero: true, ticks: { color: '#e0f2e9' } },
+                          x: { ticks: { color: '#e0f2e9', rotation: 30 } } }
+            }
+        });
+    } else if (document.getElementById('dailyChart')) {
+        document.getElementById('dailyChart').parentElement.innerHTML = '<div class="placeholder-alert">No alert data yet for charts.</div>';
+    }
+
+    if (confidences.length > 0 && document.getElementById('confidenceChart')) {
+        let bins = Array(10).fill(0);
+        confidences.forEach(c => {
+            let idx = Math.min(9, Math.floor(c / 10));
+            bins[idx]++;
+        });
+        const ctxConf = document.getElementById('confidenceChart').getContext('2d');
+        new Chart(ctxConf, {
+            type: 'bar',
+            data: {
+                labels: ['0-10%', '10-20%', '20-30%', '30-40%', '40-50%', '50-60%', '60-70%', '70-80%', '80-90%', '90-100%'],
+                datasets: [{
+                    label: 'Number of Detections',
+                    data: bins,
+                    backgroundColor: 'rgba(163, 230, 53, 0.6)',
+                    borderColor: '#a3e635'
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { labels: { color: '#e0f2e9' } } },
+                scales: { y: { ticks: { color: '#e0f2e9' }, beginAtZero: true },
+                          x: { ticks: { color: '#e0f2e9', rotation: 45 } } }
+            }
+        });
+    } else if (document.getElementById('confidenceChart')) {
+        document.getElementById('confidenceChart').parentElement.innerHTML = '<div class="placeholder-alert">No confidence data yet.</div>';
+    }
+
+    // CSV Export
+    function exportToCSV() {
+        let rows = document.querySelectorAll('#alertTable tbody tr');
+        let csv = [["Timestamp", "Detected Object", "Confidence"]];
+        rows.forEach(row => {
+            let cols = row.querySelectorAll('td');
+            if (cols.length >= 3) csv.push([cols[0].innerText, cols[1].innerText, cols[2].innerText]);
+        });
+        let blob = new Blob([csv.map(r => r.join(",")).join("\n")], {type: "text/csv"});
+        let a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `poacher_alerts_${new Date().toISOString().slice(0,10)}.csv`;
+        a.click();
+    }
+
+    // Ranger Notes (localStorage)
+    const notesArea = document.getElementById('rangerNotes');
+    if (localStorage.getItem('rangerNotes')) {
+        notesArea.value = localStorage.getItem('rangerNotes');
+    }
+    notesArea.addEventListener('input', function() {
+        localStorage.setItem('rangerNotes', notesArea.value);
+    });
+
+    // Auto-refresh every 30 seconds (optional)
+    setTimeout(() => location.reload(), 30000);
+</script>
+</body>
+</html>
